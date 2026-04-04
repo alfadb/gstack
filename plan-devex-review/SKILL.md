@@ -49,6 +49,11 @@ echo "SKILL_PREFIX: $_SKILL_PREFIX"
 source <(~/.claude/skills/gstack/bin/gstack-repo-mode 2>/dev/null) || true
 REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
+# Auto-migrate legacy ~/.gstack/projects/ data to project-local .gstack/ (once per project)
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" || true
+if [ -n "${PROJECT_DATA_DIR:-}" ] && [ -d "$HOME/.gstack/projects/${SLUG:-}" ] && [ ! -f "${PROJECT_DATA_DIR}/.migrated" ]; then
+  ~/.claude/skills/gstack/bin/gstack-migrate-local 2>/dev/null && touch "${PROJECT_DATA_DIR}/.migrated" 2>/dev/null || true
+fi
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
@@ -972,9 +977,11 @@ Execute every other section at full depth. When the loaded skill's instructions 
 After /office-hours completes, re-run the design doc check:
 ```bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
-SLUG=$(~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
-DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+DESIGN=$(ls -t "$PROJECT_DATA_DIR"/designs/*-$BRANCH-design-*.md 2>/dev/null | head -1)
+[ -z "$DESIGN" ] && DESIGN=$(ls -t "$PROJECT_DATA_DIR"/designs/*-design-*.md 2>/dev/null | head -1)
+# Fallback: legacy global path
+[ -z "$DESIGN" ] && DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
 [ -z "$DESIGN" ] && DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
 [ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
 ```
